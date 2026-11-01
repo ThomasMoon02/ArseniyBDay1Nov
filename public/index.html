@@ -271,7 +271,7 @@
     z-index: 1;
     max-width: 1180px;
     margin: 0 auto;
-    padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 3rem) clamp(2rem, 6vw, 4rem);
+    padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 3rem) clamp(4rem, 10vw, 8rem);
   }
 
   .vote-grid {
@@ -482,142 +482,6 @@
 
   .vote-note.is-ready { color: var(--light); }
   .vote-note.is-error { color: #d07070; }
-
-  /* ============ ТАЙМЕР ============ */
-  .countdown {
-    position: relative;
-    z-index: 1;
-    text-align: center;
-    padding: clamp(3.2rem, 8vw, 6rem) clamp(1.25rem, 5vw, 3rem);
-    border-top: 1px solid var(--ash);
-    border-bottom: 1px solid var(--ash);
-    background: linear-gradient(180deg, rgba(24,24,32,.55), rgba(7,7,10,0));
-  }
-
-  .countdown__grid {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: clamp(1rem, 5vw, 4.5rem);
-    margin-top: 2.2rem;
-  }
-
-  .countdown__item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: .55rem;
-    min-width: 64px;
-  }
-
-  .countdown__num {
-    font-family: var(--f-display);
-    font-size: clamp(2.6rem, 8.5vw, 4.6rem);
-    line-height: .9;
-    color: var(--white);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: .02em;
-  }
-
-  .countdown__label {
-    font-size: .58rem;
-    letter-spacing: .3em;
-    text-transform: uppercase;
-    color: var(--smoke);
-  }
-
-  .countdown__deadline {
-    margin-top: 2rem;
-    font-size: .62rem;
-    letter-spacing: .32em;
-    text-transform: uppercase;
-    color: var(--smoke);
-  }
-
-  .countdown__deadline strong {
-    color: var(--light);
-    font-weight: 500;
-  }
-
-  /* ============ RSVP ============ */
-  .rsvp {
-    position: relative;
-    z-index: 1;
-    max-width: 640px;
-    margin: 0 auto;
-    padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 3rem);
-    text-align: center;
-  }
-
-  .rsvp__form { display: flex; flex-direction: column; gap: 1.9rem; text-align: left; }
-
-  .field label {
-    display: block;
-    font-size: .58rem;
-    letter-spacing: .32em;
-    text-transform: uppercase;
-    color: var(--smoke);
-    margin-bottom: .35rem;
-  }
-
-  .field input,
-  .field select,
-  .field textarea {
-    width: 100%;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--ash);
-    border-radius: 0;
-    padding: .85rem 0;
-    font-family: var(--f-sans);
-    font-size: .95rem;
-    font-weight: 300;
-    color: var(--white);
-    outline: none;
-    transition: border-color .35s ease;
-    resize: vertical;
-  }
-  .field select option { background: var(--graphite); color: var(--white); }
-  .field input::placeholder,
-  .field textarea::placeholder { color: var(--smoke); }
-
-  .field input:focus,
-  .field select:focus,
-  .field textarea:focus { border-bottom-color: var(--silver); }
-
-  .btn {
-    font-family: var(--f-sans);
-    font-size: .68rem;
-    font-weight: 500;
-    letter-spacing: .34em;
-    text-transform: uppercase;
-    color: var(--black);
-    background: var(--white);
-    border: none;
-    padding: 1.15rem 2rem;
-    cursor: pointer;
-    transition: letter-spacing .4s ease, background .4s ease, transform .3s ease;
-    margin-top: .5rem;
-  }
-  .btn:hover { background: var(--silver); letter-spacing: .44em; }
-  .btn:active { transform: scale(.985); }
-
-  .rsvp__success {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.2rem;
-    padding: 3rem 0;
-    animation: fadeUp .8s both;
-  }
-  .rsvp__success svg { width: 48px; height: 48px; color: var(--white); }
-  .rsvp__success p {
-    font-family: var(--f-serif);
-    font-style: italic;
-    font-size: 1.4rem;
-    color: var(--light);
-    letter-spacing: .02em;
-  }
 
   /* ============ ФУТЕР ============ */
   .footer {
@@ -875,69 +739,6 @@
       </p>
     </section>
 
-    <!-- ТАЙМЕР -->
-    <section class="countdown">
-      <div class="section-head reveal" style="margin-bottom:0">
-        <span class="eyebrow">До конца голосования</span>
-        <h2>Осталось</h2>
-      </div>
-
-      <div class="countdown__grid reveal" id="countdown">
-        <div class="countdown__item">
-          <span class="countdown__num" id="cd-days">—</span>
-          <span class="countdown__label">дней</span>
-        </div>
-        <div class="countdown__item">
-          <span class="countdown__num" id="cd-hours">—</span>
-          <span class="countdown__label">часов</span>
-        </div>
-        <div class="countdown__item">
-          <span class="countdown__num" id="cd-mins">—</span>
-          <span class="countdown__label">минут</span>
-        </div>
-        <div class="countdown__item">
-          <span class="countdown__num" id="cd-secs">—</span>
-          <span class="countdown__label">секунд</span>
-        </div>
-      </div>
-
-      <p class="countdown__deadline reveal">
-        Голосование заканчивается <strong>4 ноября 2026 в 10:00 МСК</strong>
-      </p>
-    </section>
-
-    <!-- RSVP -->
-    <section class="rsvp">
-      <div class="section-head reveal">
-        <span class="eyebrow">RSVP</span>
-        <h2>Будете?</h2>
-      </div>
-
-      <form class="rsvp__form reveal" id="rsvp-form" novalidate>
-        <div class="field">
-          <label for="name">Имя и фамилия</label>
-          <input type="text" id="name" name="name" placeholder="Иван Иванов" required>
-        </div>
-
-        <div class="field">
-          <label for="guests">Сколько вас будет</label>
-          <select id="guests" name="guests">
-            <option value="1">Один гость</option>
-            <option value="2">Два гостя</option>
-            <option value="3">Три гостя</option>
-            <option value="4">Четыре гостя и больше</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="note">Пожелания</label>
-          <textarea id="note" name="note" rows="2" placeholder="Аллергии, предпочтения…"></textarea>
-        </div>
-
-        <button type="submit" class="btn">Подтвердить участие</button>
-      </form>
-    </section>
-
   </main>
 
   <!-- ФУТЕР -->
@@ -966,9 +767,6 @@
 
   /* ================================================================
      ГОЛОСОВАНИЕ — СЕРВЕРНАЯ АРХИТЕКТУРА (Netlify Functions + Blobs)
-     Все данные приходят с /api/results и /api/me,
-     голос отправляется на POST /api/vote.
-     Уникальность обеспечивает сервер через HttpOnly cookie.
      ================================================================ */
 
   const voteNote   = document.getElementById('vote-note');
@@ -976,21 +774,15 @@
   const submitBtn  = document.getElementById('vote-submit');
   const submitWrap = document.getElementById('vote-submit-wrap');
 
-  // Локальное состояние клиента (только для UI; данные с сервера)
   const state = {
     votes:    { place: {}, date: {}, time: {} },
     total:    0,
     hasVoted: false,
-    serverVote: null,           // что сервер уже принял от этого пользователя
-    mySelection: { place: null, date: null, time: null }, // текущий выбор в UI
+    serverVote: null,
+    mySelection: { place: null, date: null, time: null },
     submitting: false,
-    lastError: null,
-    expired:  false
+    lastError: null
   };
-
-  const VOTE_DEADLINE = new Date('2026-11-04T10:00:00+03:00');
-
-  /* ---------- Сетевые запросы ---------- */
 
   async function fetchResults() {
     try {
@@ -1002,9 +794,7 @@
         state.total = d.total || 0;
       }
       render();
-    } catch (e) {
-      /* сеть недоступна — не затираем прошлое состояние */
-    }
+    } catch (e) {}
   }
 
   async function fetchMe() {
@@ -1021,13 +811,11 @@
         state.serverVote = null;
       }
       render();
-    } catch (e) {
-      /* ok, попробуем при следующем тике */
-    }
+    } catch (e) {}
   }
 
   async function submitVote() {
-    if (state.hasVoted || state.expired || state.submitting) return;
+    if (state.hasVoted || state.submitting) return;
     const { place, date, time } = state.mySelection;
     if (!place || !date || !time) return;
 
@@ -1053,7 +841,6 @@
         state.serverVote = { place, date, time };
         state.lastError = null;
       } else if (r.status === 409) {
-        // уже голосовал ранее (например, в другой вкладке)
         const d = await r.json().catch(() => ({}));
         state.hasVoted = true;
         state.serverVote = d.vote || state.serverVote;
@@ -1075,14 +862,12 @@
     }
   }
 
-  /* ---------- Подсчёт и отрисовка ---------- */
-
   function groupTotal(group) {
     return Object.values(state.votes[group] || {}).reduce((a, b) => a + b, 0);
   }
 
   function render() {
-    const locked = state.hasVoted || state.expired || state.submitting;
+    const locked = state.hasVoted || state.submitting;
 
     document.querySelectorAll('.vote-group').forEach((group) => {
       const g = group.dataset.group;
@@ -1106,7 +891,7 @@
   }
 
   function updateSubmit() {
-    if (state.hasVoted || state.expired) {
+    if (state.hasVoted) {
       submitWrap.style.display = 'none';
       return;
     }
@@ -1119,10 +904,6 @@
   function updateNote() {
     voteNote.classList.remove('is-ready', 'is-error');
 
-    if (state.expired) {
-      voteNote.textContent = 'Голосование завершено.';
-      return;
-    }
     if (state.lastError) {
       voteNote.textContent = state.lastError;
       voteNote.classList.add('is-error');
@@ -1146,11 +927,9 @@
     voteNote.textContent = `Выберите ${missing.join(', ')} — голос учитывается один раз.`;
   }
 
-  /* ---------- Клик по варианту ---------- */
-
   document.querySelectorAll('.vote-option').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (state.hasVoted || state.expired || state.submitting) return;
+      if (state.hasVoted || state.submitting) return;
       const group = btn.closest('.vote-group').dataset.group;
       state.mySelection[group] = btn.dataset.value;
       state.lastError = null;
@@ -1160,49 +939,11 @@
 
   submitBtn.addEventListener('click', submitVote);
 
-  /* ---------- Обратный отсчёт ---------- */
-
-  const pad = (n) => String(n).padStart(2, '0');
-
-  function tick() {
-    const diff = VOTE_DEADLINE - new Date();
-
-    if (diff <= 0) {
-      ['cd-days', 'cd-hours', 'cd-mins', 'cd-secs'].forEach((id) => {
-        document.getElementById(id).textContent = '00';
-      });
-      if (!state.expired) {
-        state.expired = true;
-        render();
-      }
-      return;
-    }
-
-    const days  = Math.floor(diff / 86400000);
-    const hours = Math.floor(diff / 3600000) % 24;
-    const mins  = Math.floor(diff / 60000) % 60;
-    const secs  = Math.floor(diff / 1000) % 60;
-
-    document.getElementById('cd-days').textContent  = pad(days);
-    document.getElementById('cd-hours').textContent = pad(hours);
-    document.getElementById('cd-mins').textContent  = pad(mins);
-    document.getElementById('cd-secs').textContent  = pad(secs);
-  }
-
-  /* ---------- Инициализация ---------- */
-
   async function init() {
-    // сначала «кто я» — чтобы сразу отрисовать статус пользователя
     await fetchMe();
     await fetchResults();
-
-    tick();
-    setInterval(tick, 1000);
-
-    // «live»-обновление результатов для всех гостей — раз в 5 секунд
     setInterval(fetchResults, 5000);
 
-    // при возврате на вкладку — сразу подтянуть актуальные данные
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         fetchMe();
@@ -1212,33 +953,6 @@
   }
 
   init();
-
-  /* ================================================================
-     ФОРМА RSVP (осталась локальной — при необходимости отправляйте
-     данные на отдельный эндпоинт /api/rsvp)
-     ================================================================ */
-  const form = document.getElementById('rsvp-form');
-
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const nameField = document.getElementById('name');
-    if (!nameField.value.trim()) {
-      nameField.style.borderBottomColor = '#8e8e9a';
-      nameField.focus();
-      nameField.placeholder = 'Пожалуйста, укажите имя';
-      return;
-    }
-    form.outerHTML = `
-      <div class="rsvp__success">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <path d="M8 12.5l2.6 2.6L16 9.5"></path>
-        </svg>
-        <p>Спасибо! Ждём вас на празднике.</p>
-      </div>
-    `;
-  });
 </script>
 
 </body>
