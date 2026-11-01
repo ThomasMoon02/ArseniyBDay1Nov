@@ -6,13 +6,12 @@ import crypto from 'node:crypto';
 const app = express();
 
 /* ============================================================
-   Body parsing — с фолбэком на случай, если serverless-http
-   не передал req.body в Express.
+   Парсинг JSON. Даже если express.json не справится,
+   ниже подхватываем тело из event вручную.
    ============================================================ */
 app.use(express.json({ limit: '16kb', type: ['application/json', 'application/*+json'] }));
 
 app.use((req, res, next) => {
-  // Если body не распарсился — пробуем взять напрямую из event
   if ((!req.body || typeof req.body !== 'object') && req.apiGateway?.event?.body) {
     try {
       let raw = req.apiGateway.event.body;
@@ -21,7 +20,6 @@ app.use((req, res, next) => {
       }
       req.body = JSON.parse(raw);
     } catch (e) {
-      console.error('manual body parse failed:', e);
       req.body = {};
     }
   }
@@ -29,57 +27,49 @@ app.use((req, res, next) => {
   next();
 });
 
-/* Страховка от случая, когда Netlify передаёт в event.path
-   уже переписанный путь /.netlify/functions/api/... */
-app.use((req, res, next) => {
-  if (req.url.startsWith('/.netlify/functions/api')) {
-    req.url = req.url.replace('/.netlify/functions/api', '/api');
-  }
-  next();
-});
-
 /* ============================================================
-   Blobs
+   Blobs — самая совместимая инициализация.
+   Порядок:
+     1) если в env есть SITE_ID + NETLIFY_BLOBS_TOKEN → ручной режим
+     2) иначе auto-detect (Netlify сам подставит контекст)
    ============================================================ */
 const STORE_NAME = 'bd-votes';
-const COOKIE = 'bd_voter_id';
+const COOKIE     = 'bd_voter_id';
 
 function getVoteStore() {
-  // consistency: 'strong' гарантирует, что запись сразу видна при чтении
-  return getStore({ name: STORE_NAME, consistency: 'strong' });
+  const siteID = process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
+  const token  = process.env.NETLIFY_BLOBS_TOKEN;
+
+  if (siteID && token) {
+    console.log('Blobs: manual mode (siteID + token)');
+    return getStore({ name: STORE_NAME, siteID, token });
+  }
+
+  console.log('Blobs: auto-detect mode');
+  return getStore(STORE_NAME);
 }
 
 function defaultData() {
   return {
     votes: {
       place: { 'Баня': 0, 'Дача': 0 },
-      date: { '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0 },
-      time: { '18:00': 0, '19:00': 0, '20:00': 0, '21:00': 0, '22:00': 0, '23:00': 0, '24:00': 0 }
+      date:  { '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0 },
+      time:  { '18:00': 0, '19:00': 0, '20:00': 0, '21:00': 0, '22:00': 0, '23:00': 0, '24:00': 0 }
     },
     voters: {}
   };
 }
 
 async function readData() {
-  try {
-    const data = await getVoteStore().get('data', { type: 'json' });
-    if (!data || typeof data !== 'object' || !data.votes || !data.voters) {
-      return defaultData();
-    }
-    return data;
-  } catch (err) {
-    console.error('readData error:', err);
-    throw err;
+  const data = await getVoteStore().get('data', { type: 'json' });
+  if (!data || typeof data !== 'object' || !data.votes || !data.voters) {
+    return defaultData();
   }
+  return data;
 }
 
 async function writeData(data) {
-  try {
-    await getVoteStore().setJSON('data', data);
-  } catch (err) {
-    console.error('writeData error:', err);
-    throw err;
-  }
+  await getVoteStore().setJSON('data', data);
 }
 
 function parseCookie(header, name) {
@@ -99,7 +89,10 @@ app.get('/api/results', async (req, res) => {
     res.json({ votes, total });
   } catch (err) {
     console.error('GET /results failed:', err);
-    res.status(500).json({ error: 'internal error', detail: String(err?.message || err) });
+    res.status(500).json({
+      error: 'internal error',
+      detail: String(err?.message || err)
+    });
   }
 });
 
@@ -113,7 +106,10 @@ app.get('/api/me', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /me failed:', err);
-    res.status(500).json({ error: 'internal error', detail: String(err?.message || err) });
+    res.status(500).json({
+      error: 'internal error',
+      detail: String(err?.message || err)
+    });
   }
 });
 
@@ -131,15 +127,19 @@ app.post('/api/vote', async (req, res) => {
     if (!VALID_PLACES.includes(place) ||
         !VALID_DATES.includes(d) ||
         !VALID_TIMES.includes(time)) {
-      return res.status(400).json({ error: 'invalid vote payload', got: { place, date, time } });
+      return res.status(400).json({
+        error: 'invalid vote payload',
+        got: { place, date, time }
+      });
     }
 
     let voterId = parseCookie(req.headers.cookie, COOKIE);
-    const isNewVoter = !voterId;
-    if (isNewVoter) {
+    if (!voterId) {
       voterId = crypto.randomUUID();
-      res.setHeader('Set-Cookie',
-        `${COOKIE}=${voterId}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax; Secure`);
+      res.setHeader(
+        'Set-Cookie',
+        `${COOKIE}=${voterId}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax; Secure`
+      );
     }
 
     const data = await readData();
@@ -147,11 +147,10 @@ app.post('/api/vote', async (req, res) => {
     if (data.voters[voterId]) {
       return res.status(409).json({
         error: 'already voted',
-        vote: data.voters[voterId]
+        vote:  data.voters[voterId]
       });
     }
 
-    // Защитная проверка: если ключа нет — создаём
     if (!data.votes.place[place]) data.votes.place[place] = 0;
     if (!data.votes.date[d])     data.votes.date[d] = 0;
     if (!data.votes.time[time])  data.votes.time[time] = 0;
@@ -168,17 +167,31 @@ app.post('/api/vote', async (req, res) => {
     res.json({ success: true, votes: data.votes, total });
   } catch (err) {
     console.error('POST /vote failed:', err);
-    res.status(500).json({ error: 'internal error', detail: String(err?.message || err) });
+    res.status(500).json({
+      error: 'internal error',
+      detail: String(err?.message || err)
+    });
   }
 });
 
 app.get('/api/health', async (req, res) => {
   try {
-    await getVoteStore().get('data');
-    res.json({ ok: true });
+    const store = getVoteStore();
+    await store.get('data');
+    res.json({
+      ok: true,
+      mode: process.env.NETLIFY_BLOBS_TOKEN ? 'manual' : 'auto',
+      hasSiteId: !!process.env.SITE_ID,
+      hasBlobsContext: !!process.env.NETLIFY_BLOBS_CONTEXT
+    });
   } catch (err) {
     console.error('health check failed:', err);
-    res.status(500).json({ ok: false, error: String(err?.message || err) });
+    res.status(500).json({
+      ok: false,
+      error: String(err?.message || err),
+      hasSiteId: !!process.env.SITE_ID,
+      hasBlobsContext: !!process.env.NETLIFY_BLOBS_CONTEXT
+    });
   }
 });
 
