@@ -33,7 +33,7 @@ app.use((req, res, next) => {
      1) если в env есть SITE_ID + NETLIFY_BLOBS_TOKEN → ручной режим
      2) иначе auto-detect (Netlify сам подставит контекст)
    ============================================================ */
-const STORE_NAME = 'bd-votes';
+const STORE_NAME = 'bd-votes-V2';
 const COOKIE     = 'bd_voter_id';
 
 function getVoteStore() {
