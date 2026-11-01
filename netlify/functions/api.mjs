@@ -4,100 +4,182 @@ import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 
 const app = express();
-app.use(express.json());
 
+/* ============================================================
+   Body parsing — с фолбэком на случай, если serverless-http
+   не передал req.body в Express.
+   ============================================================ */
+app.use(express.json({ limit: '16kb', type: ['application/json', 'application/*+json'] }));
+
+app.use((req, res, next) => {
+  // Если body не распарсился — пробуем взять напрямую из event
+  if ((!req.body || typeof req.body !== 'object') && req.apiGateway?.event?.body) {
+    try {
+      let raw = req.apiGateway.event.body;
+      if (req.apiGateway.event.isBase64Encoded) {
+        raw = Buffer.from(raw, 'base64').toString('utf8');
+      }
+      req.body = JSON.parse(raw);
+    } catch (e) {
+      console.error('manual body parse failed:', e);
+      req.body = {};
+    }
+  }
+  if (!req.body || typeof req.body !== 'object') req.body = {};
+  next();
+});
+
+/* Страховка от случая, когда Netlify передаёт в event.path
+   уже переписанный путь /.netlify/functions/api/... */
+app.use((req, res, next) => {
+  if (req.url.startsWith('/.netlify/functions/api')) {
+    req.url = req.url.replace('/.netlify/functions/api', '/api');
+  }
+  next();
+});
+
+/* ============================================================
+   Blobs
+   ============================================================ */
 const STORE_NAME = 'bd-votes';
 const COOKIE = 'bd_voter_id';
 
-// Хелпер для получения хранилища
-const store = () => getStore(STORE_NAME);
+function getVoteStore() {
+  // consistency: 'strong' гарантирует, что запись сразу видна при чтении
+  return getStore({ name: STORE_NAME, consistency: 'strong' });
+}
 
-// Чтение данных
-async function readData() {
-  const data = await store().get('data', { type: 'json' });
-  // Если данных нет, возвращаем структуру по умолчанию
-  return data || {
+function defaultData() {
+  return {
     votes: {
       place: { 'Баня': 0, 'Дача': 0 },
       date: { '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0 },
       time: { '18:00': 0, '19:00': 0, '20:00': 0, '21:00': 0, '22:00': 0, '23:00': 0, '24:00': 0 }
     },
-    voters: {} // { voterId: { place, date, time, ts } }
+    voters: {}
   };
 }
 
-// Запись данных
-async function writeData(data) {
-  await store().setJSON('data', data);
+async function readData() {
+  try {
+    const data = await getVoteStore().get('data', { type: 'json' });
+    if (!data || typeof data !== 'object' || !data.votes || !data.voters) {
+      return defaultData();
+    }
+    return data;
+  } catch (err) {
+    console.error('readData error:', err);
+    throw err;
+  }
 }
 
-// --- API Эндпоинты ---
+async function writeData(data) {
+  try {
+    await getVoteStore().setJSON('data', data);
+  } catch (err) {
+    console.error('writeData error:', err);
+    throw err;
+  }
+}
 
-// 1. Получить текущие результаты
+function parseCookie(header, name) {
+  if (!header) return null;
+  const m = header.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+/* ============================================================
+   API
+   ============================================================ */
+
 app.get('/api/results', async (req, res) => {
   try {
     const { votes } = await readData();
-    const total = Object.values(votes.place).reduce((a, b) => a + b, 0);
+    const total = Object.values(votes.place || {}).reduce((a, b) => a + b, 0);
     res.json({ votes, total });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal Server Error' });
+  } catch (err) {
+    console.error('GET /results failed:', err);
+    res.status(500).json({ error: 'internal error', detail: String(err?.message || err) });
   }
 });
 
-// 2. Узнать, голосовал ли текущий пользователь
 app.get('/api/me', async (req, res) => {
   try {
-    const voterId = req.headers.cookie?.match(new RegExp(`${COOKIE}=([^;]+)`))?.[1];
+    const voterId = parseCookie(req.headers.cookie, COOKIE);
     const { voters } = await readData();
-    const userVote = voterId ? voters[voterId] : null;
-    res.json({ vote: userVote });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal Server Error' });
+    const vote = voterId && voters[voterId] ? voters[voterId] : null;
+    res.json({
+      vote: vote ? { place: vote.place, date: vote.date, time: vote.time } : null
+    });
+  } catch (err) {
+    console.error('GET /me failed:', err);
+    res.status(500).json({ error: 'internal error', detail: String(err?.message || err) });
   }
 });
 
-// 3. Проголосовать
+const VALID_PLACES = ['Баня', 'Дача'];
+const VALID_DATES  = ['2', '3', '4', '5', '6', '7', '8'];
+const VALID_TIMES  = ['18:00', '19:00', '20:00', '21:00', '22:00', '23:00', '24:00'];
+
 app.post('/api/vote', async (req, res) => {
   try {
-    const { place, date, time } = req.body;
-    
-    // Валидация
-    const validPlaces = ['Баня', 'Дача'];
-    const validDates = ['2', '3', '4', '5', '6', '7', '8'];
-    const validTimes = ['18:00', '19:00', '20:00', '21:00', '22:00', '23:00', '24:00'];
-    
-    if (!validPlaces.includes(place) || !validDates.includes(String(date)) || !validTimes.includes(time)) {
-      return res.status(400).json({ error: 'Invalid vote data' });
+    console.log('POST /vote body:', req.body);
+
+    const { place, date, time } = req.body || {};
+    const d = String(date ?? '');
+
+    if (!VALID_PLACES.includes(place) ||
+        !VALID_DATES.includes(d) ||
+        !VALID_TIMES.includes(time)) {
+      return res.status(400).json({ error: 'invalid vote payload', got: { place, date, time } });
     }
 
-    // Получаем или создаем ID пользователя
-    let voterId = req.headers.cookie?.match(new RegExp(`${COOKIE}=([^;]+)`))?.[1];
-    if (!voterId) {
+    let voterId = parseCookie(req.headers.cookie, COOKIE);
+    const isNewVoter = !voterId;
+    if (isNewVoter) {
       voterId = crypto.randomUUID();
-      // Устанавливаем HttpOnly cookie на 1 год
-      res.setHeader('Set-Cookie', `${COOKIE}=${voterId}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax`);
+      res.setHeader('Set-Cookie',
+        `${COOKIE}=${voterId}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax; Secure`);
     }
 
     const data = await readData();
 
-    // Проверка на уникальность
     if (data.voters[voterId]) {
-      return res.status(409).json({ error: 'You have already voted', vote: data.voters[voterId] });
+      return res.status(409).json({
+        error: 'already voted',
+        vote: data.voters[voterId]
+      });
     }
 
-    // Записываем голос
-    data.votes.place[place]++;
-    data.votes.date[date]++;
-    data.votes.time[time]++;
-    data.voters[voterId] = { place, date, time, ts: Date.now() };
+    // Защитная проверка: если ключа нет — создаём
+    if (!data.votes.place[place]) data.votes.place[place] = 0;
+    if (!data.votes.date[d])     data.votes.date[d] = 0;
+    if (!data.votes.time[time])  data.votes.time[time] = 0;
+
+    data.votes.place[place] += 1;
+    data.votes.date[d]      += 1;
+    data.votes.time[time]   += 1;
+
+    data.voters[voterId] = { place, date: d, time, ts: Date.now() };
 
     await writeData(data);
 
-    res.json({ success: true, votes: data.votes });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal Server Error' });
+    const total = Object.values(data.votes.place).reduce((a, b) => a + b, 0);
+    res.json({ success: true, votes: data.votes, total });
+  } catch (err) {
+    console.error('POST /vote failed:', err);
+    res.status(500).json({ error: 'internal error', detail: String(err?.message || err) });
   }
 });
 
-// Экспортируем функцию, обернутую в serverless-http
+app.get('/api/health', async (req, res) => {
+  try {
+    await getVoteStore().get('data');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('health check failed:', err);
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
 export const handler = serverless(app);
